@@ -72,7 +72,7 @@ const classifyIntent = async (state: EmailAgentState) => {
   }
 }
 
-const bugTracking = (state: EmailAgentState) => { 
+const bugTracking = (state: EmailAgentState) => {
   console.log('Creating bug tracking ticket...');
 
   const ticketId = `BUG_${Date.now()}`;
@@ -81,7 +81,27 @@ const bugTracking = (state: EmailAgentState) => {
   return { ticketId }
 }
 
-const searchDocumentation = (state: EmailAgentState) => { }
+const searchDocumentation = (state: EmailAgentState) => {
+  console.log(`Searching documentation...`);
+
+  const classification = state.classification ?? {
+    intent: "question",
+    urgency: "medium",
+    topic: "general",
+    summary: "Unable to classify email automatically"
+  }
+
+  const searchResults = [
+    `Documentation for ${classification.intent}: Basic information about ${classification.topic}`,
+    `FAQ Entry: Common Questions Related to ${classification.topic}`,
+    `Knowledge base article: How to handle ${classification.intent} requests`
+  ];
+
+  console.log("Found search results:", searchResults.length, 'items');
+
+  return { searchResults }
+}
+
 const writeResponse = (state: EmailAgentState) => { }
 const humanReview = (state: EmailAgentState) => { }
 const sendReply = (state: EmailAgentState) => { }
