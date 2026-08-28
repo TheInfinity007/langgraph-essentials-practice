@@ -2,6 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
+import { MemorySaver, StateGraph } from '@langchain/langgraph'
 
 const llm = new ChatOpenAI({ model: 'gpt-5' });
 
@@ -24,3 +25,27 @@ export const EmailStateDefinition = z.object({
 });
 
 export type EmailAgentState = z.infer<typeof EmailStateDefinition>;
+
+const memory = new MemorySaver();
+
+const NODES = {
+  READ_EMAIL: 'read_email',
+  CLASSIFY_INTENT: 'classify_intent',
+  BUG_TRACKING: 'bug_tracking',
+  SEARCH_DOCUMENTATION: 'search_documentation',
+  WRITE_RESPONSE: 'write_response',
+  HUMAN_REVIEW: 'human_review',
+  SEND_REPLY: 'send_reply'
+}
+
+const graph = new StateGraph(EmailStateDefinition)
+  // Add Nodes
+  .addNode(NODES.READ_EMAIL, readEmail)
+  .addNode(NODES.CLASSIFY_INTENT, classifyIntent)
+  .addNode(NODES.BUG_TRACKING, bugTracking)
+  .addNode(NODES.SEARCH_DOCUMENTATION, searchDocumentation)
+  .addNode(NODES.WRITE_RESPONSE, writeResponse)
+  .addNode(NODES.HUMAN_REVIEW, humanReview)
+  .addNode(NODES.SEND_REPLY, sendReply)
+
+  // Add Edge
