@@ -37,6 +37,46 @@ const NODES = {
   HUMAN_REVIEW: 'human_review',
   SEND_REPLY: 'send_reply'
 }
+// Purpose: Fetch the email from prod email server
+const readEmail = (state: EmailAgentState) => {
+  console.log(`Processing email from: ${state.senderEmail}`);
+  return {};
+}
+
+const classifyIntent = async (state: EmailAgentState) => {
+  console.log(`Classifying email intent and urgency...`);
+
+  const structuredLlm = llm.withStructuredOutput(EmailClassificationSchema);
+
+  const classificationPrompt = `
+      Analyse the customer email and classify it:
+      
+      Email: ${state.emailContent}
+      From: ${state.senderEmail}
+
+      Provide classification, including intent, urgency, topic and summary.
+  `;
+
+  try {
+    const classification = await structuredLlm.invoke(classificationPrompt);  // Error Prone as it is outbound call
+    console.log('Classification', classification)
+    return { classification }
+  } catch (err) {
+    console.log('Error in classifying the email:', err);
+    return {
+      intent: "question",
+      urgency: "medium",
+      topic: "general inquiry",
+      summary: "Unable to classify email automatically"
+    }
+  }
+}
+const bugTracking = (state: EmailAgentState) => { }
+const searchDocumentation = (state: EmailAgentState) => { }
+const writeResponse = (state: EmailAgentState) => { }
+const humanReview = (state: EmailAgentState) => { }
+const sendReply = (state: EmailAgentState) => { }
+
 
 const graph = new StateGraph(EmailStateDefinition)
   // Add Nodes
