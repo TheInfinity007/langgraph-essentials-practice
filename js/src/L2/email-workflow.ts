@@ -2,7 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
-import { MemorySaver, StateGraph } from '@langchain/langgraph'
+import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph'
 
 const llm = new ChatOpenAI({ model: 'gpt-5' });
 
@@ -48,4 +48,18 @@ const graph = new StateGraph(EmailStateDefinition)
   .addNode(NODES.HUMAN_REVIEW, humanReview)
   .addNode(NODES.SEND_REPLY, sendReply)
 
-  // Add Edge
+  // Add Edges
+  .addEdge(START, NODES.READ_EMAIL)
+  .addEdge(NODES.READ_EMAIL, NODES.CLASSIFY_INTENT)
+  .addEdge(NODES.CLASSIFY_INTENT, NODES.BUG_TRACKING)
+  .addEdge(NODES.CLASSIFY_INTENT, NODES.SEARCH_DOCUMENTATION)
+  .addEdge(NODES.BUG_TRACKING, NODES.WRITE_RESPONSE)
+  .addEdge(NODES.SEARCH_DOCUMENTATION, NODES.WRITE_RESPONSE)
+  // .addConditionalEdges(NODES.WRITE_RESPONSE, NODES.HUMAN_REVIEW)
+  // .addConditionalEdges(NODES.WRITE_RESPONSE, NODES.SEND_REPLY)
+  // .addConditionalEdges(NODES.HUMAN_REVIEW, NODES.SEND_REPLY)
+  // .addConditionalEdges(NODES.HUMAN_REVIEW, END)
+  // Instead of conditional Edges, we will be using the send commands instead
+  .addEdge(NODES.SEND_REPLY, END)
+
+  .compile({ checkpointer: memory })
