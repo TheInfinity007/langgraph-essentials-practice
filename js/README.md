@@ -7,7 +7,7 @@ This directory contains TypeScript implementations of the LangGraph examples fro
 ### Prerequisites
 
 - Node.js 20+
-- npm or yarn
+- npm
 - OpenAI API key (for L2 email workflow)
 
 ### Installation
@@ -43,7 +43,7 @@ build project
 
 ```bash
 # Install dependencies
-pnpm install
+npm install
 ```
 
 
@@ -83,18 +83,18 @@ A structured workflow to process customer emails (`email-workflow-complete.ts`).
 ### Individual L1 Examples
 
 ```bash
-pnpm tsx src/L1/01-simple-node.ts
-pnpm tsx src/L1/02-parallel-execution.ts
-pnpm tsx src/L1/03-conditional-edges.ts 
-pnpm tsx src/L1/03-conditional-edge-router.ts
-pnpm tsx src/L1/04-memory.ts
-pnpm tsx src/L1/05-interrupts.ts 
+npx tsx src/L1/01-simple-node.ts
+npx tsx src/L1/02-parallel-execution.ts
+npx tsx src/L1/03-conditional-edges.ts
+npx tsx src/L1/03-conditional-edge-router.ts
+npx tsx src/L1/04-memory.ts
+npx tsx src/L1/05-interrupts.ts
 ```
 ### 📧 L2 Email Workflow
 
 ```bash
 # email processing in Langsmith Studio
-pnpm dev
+npm run dev
 ```
 
 ## 🔗 Related Resources

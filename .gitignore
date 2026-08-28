@@ -173,8 +173,6 @@ coverage/
 
 # Keep lockfiles (important for reproducible installs)
 !package-lock.json
-!yarn.lock
-!pnpm-lock.yaml
 
 # Logs
 npm-debug.log*
