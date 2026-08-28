@@ -71,7 +71,16 @@ const classifyIntent = async (state: EmailAgentState) => {
     }
   }
 }
-const bugTracking = (state: EmailAgentState) => { }
+
+const bugTracking = (state: EmailAgentState) => { 
+  console.log('Creating bug tracking ticket...');
+
+  const ticketId = `BUG_${Date.now()}`;
+
+  console.log(`Ticket Created: ${ticketId}`);
+  return { ticketId }
+}
+
 const searchDocumentation = (state: EmailAgentState) => { }
 const writeResponse = (state: EmailAgentState) => { }
 const humanReview = (state: EmailAgentState) => { }
