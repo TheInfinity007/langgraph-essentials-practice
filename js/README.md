@@ -103,10 +103,28 @@ at the prompt to approve the draft and let it run through to `send_reply`:
 {"approved": true, "editedResponse": "We will be there soon"}
 ```
 
-An `OPENAI_API_KEY` is **not** required to see the workflow run. Without one, the
-LLM calls in `classify_intent` and `write_response` fail into their fallback
-branches, so the graph still completes and you can follow the routing, the
-interrupt, and the resume end to end.
+#### Choosing a provider
+
+`LLM_PROVIDER` selects the model backing the workflow, and defaults to `gemini`:
+
+```bash
+# gemini (default) — no API key, authenticates via Google ADC
+npx tsx src/L2/email-workflow.ts
+
+# openai — needs OPENAI_API_KEY; npx tsx does not read .env, hence --env-file
+LLM_PROVIDER=openai node --env-file=.env --import tsx src/L2/email-workflow.ts
+```
+
+| Variable | Default | Notes |
+|---|---|---|
+| `LLM_PROVIDER` | `gemini` | `gemini` or `openai`. Unknown values fail loudly. |
+| `LLM_MODEL` | `gemini-2.5-pro` / `gpt-5` | Override the model id. |
+| `GOOGLE_CLOUD_LOCATION` | `us-central1` | Vertex region — model availability varies by region. |
+
+Selection is explicit: if the chosen provider's credentials are missing, the run fails with
+a specific message instead of silently switching to the other provider. For the one-time
+`gcloud auth application-default login` that makes the keyless `gemini` path work, see
+[docs/gemini-adc-setup.md](docs/gemini-adc-setup.md).
 
 ```bash
 # email processing in Langsmith Studio
@@ -118,11 +136,8 @@ npm run dev
 Authenticating to an LLM provider **without an API key**, using an org SSO login:
 
 - [docs/gemini-adc-setup.md](docs/gemini-adc-setup.md) — Gemini on Vertex AI via Google
-  Application Default Credentials (what the L2 email workflow currently uses)
+  Application Default Credentials (what the L2 email workflow uses by default)
 - [docs/gemini-adc-architecture.md](docs/gemini-adc-architecture.md) — how that works internally
-- [docs/claude-oauth-setup.md](docs/claude-oauth-setup.md) — Claude via an `ant auth login`
-  OAuth profile (reusable recipe)
-- [docs/claude-oauth-architecture.md](docs/claude-oauth-architecture.md) — how that works internally
 
 ## 🔗 Related Resources
 
