@@ -113,6 +113,17 @@ interrupt, and the resume end to end.
 npm run dev
 ```
 
+## 📄 Docs
+
+Authenticating to an LLM provider **without an API key**, using an org SSO login:
+
+- [docs/gemini-adc-setup.md](docs/gemini-adc-setup.md) — Gemini on Vertex AI via Google
+  Application Default Credentials (what the L2 email workflow currently uses)
+- [docs/gemini-adc-architecture.md](docs/gemini-adc-architecture.md) — how that works internally
+- [docs/claude-oauth-setup.md](docs/claude-oauth-setup.md) — Claude via an `ant auth login`
+  OAuth profile (reusable recipe)
+- [docs/claude-oauth-architecture.md](docs/claude-oauth-architecture.md) — how that works internally
+
 ## 🔗 Related Resources
 
 - [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/overview)

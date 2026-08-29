@@ -1,11 +1,13 @@
 // L2 Email Workflow - Complete email processing workflow
 
-import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
 import { Command, END, interrupt, MemorySaver, START, StateGraph } from '@langchain/langgraph'
 import { getUserInput } from '../utils.js';
+import { createLlm } from '../llm.js';
 
-const llm = new ChatOpenAI({ model: 'gpt-5' });
+// Provider is chosen with LLM_PROVIDER (gemini | openai); defaults to gemini, which
+// authenticates via Google ADC and needs no API key. See src/llm.ts.
+const llm = createLlm();
 
 export const EmailClassificationSchema = z.object({
   intent: z.enum(['question', 'bug', 'billing', 'feature', 'complex']),
@@ -156,7 +158,9 @@ const writeResponse = async (state: EmailAgentState) => {
     const goto = needsReview ? NODES.HUMAN_REVIEW : NODES.SEND_REPLY;
 
     return new Command({
-      update: { draftResponse: response },
+      // .text, not the message itself: draftResponse is a string, and Claude returns
+      // content as an array of content blocks. .text flattens it.
+      update: { draftResponse: response.text },
       goto
     })
   } catch (err) {
