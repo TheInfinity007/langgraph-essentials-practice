@@ -194,7 +194,14 @@ const humanReview = (state: EmailAgentState) => {
     goto: END
   })
 }
-const sendReply = (state: EmailAgentState) => { }
+
+// Purpose: Send the email
+const sendReply = (state: EmailAgentState) => {
+  const preview = state.draftResponse?.substring(0, 60) + "...";
+  console.log(`Sending reply ${preview}`)
+
+  return {}
+}
 
 
 const graph = new StateGraph(EmailStateDefinition)
