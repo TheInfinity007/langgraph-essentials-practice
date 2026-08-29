@@ -2,7 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
-import { END, MemorySaver, START, StateGraph } from '@langchain/langgraph'
+import { Command, END, MemorySaver, START, StateGraph } from '@langchain/langgraph'
 
 const llm = new ChatOpenAI({ model: 'gpt-5' });
 
@@ -109,7 +109,62 @@ const searchDocumentation = (state: EmailAgentState) => {
   }
 }
 
-const writeResponse = (state: EmailAgentState) => {
+const writeResponse = async (state: EmailAgentState) => {
+  console.log('Writing response...');
+
+  const classification = state.classification ?? {
+    intent: "question",
+    urgency: "medium",
+    topic: "general",
+    summary: "Unable to classify email automatically"
+  }
+
+  const contextSessions: string[] = [];
+
+  if (state.searchResults) {
+    const formattedDocs = state.searchResults.map((doc) => `- ${doc}`).join('\n');
+    contextSessions.push(`Relevant Documentation: \n${formattedDocs}`);
+  }
+
+  if (state.customerHistory) {
+    contextSessions.push(
+      `Customer tier: ${state.customerHistory.tier} ?? 'standard'`
+    )
+  }
+
+  const draftPrompt = `
+    Draft a response to this customer email:
+
+    Email: ${state.emailContent}
+    Email intent: ${classification.intent}
+    Urgency level: ${classification.urgency}
+
+    ${contextSessions.join('\n\n')}
+
+    Guidelines:
+    - Be professional and helpful
+    - Address their specific concern
+    - Be brief
+    - Use the provided context when relevant
+  `
+
+  try {
+    const response = await llm.invoke(draftPrompt);
+
+    const needsReview = classification.urgency === 'high' || classification.urgency === 'critical' || classification.intent === 'complex'
+    const goto = needsReview ? NODES.HUMAN_REVIEW : NODES.SEND_REPLY;
+
+    return new Command({
+      update: { draftResponse: response },
+      goto
+    })
+  } catch (err) {
+    console.log('Error writing response:', err);
+    return new Command({
+      update: { draftResponse: "Error generating response. Please try again." },
+      goto: NODES.HUMAN_REVIEW
+    })
+  }
 
 }
 
