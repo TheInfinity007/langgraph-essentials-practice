@@ -204,7 +204,7 @@ const sendReply = (state: EmailAgentState) => {
 }
 
 
-const graph = new StateGraph(EmailStateDefinition)
+export const graph = new StateGraph(EmailStateDefinition)
   // Add Nodes
   .addNode(NODES.READ_EMAIL, readEmail)
   .addNode(NODES.CLASSIFY_INTENT, classifyIntent)
