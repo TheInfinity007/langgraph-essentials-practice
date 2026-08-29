@@ -91,18 +91,28 @@ const searchDocumentation = (state: EmailAgentState) => {
     summary: "Unable to classify email automatically"
   }
 
-  const searchResults = [
-    `Documentation for ${classification.intent}: Basic information about ${classification.topic}`,
-    `FAQ Entry: Common Questions Related to ${classification.topic}`,
-    `Knowledge base article: How to handle ${classification.intent} requests`
-  ];
+  try {
+    const searchResults = [
+      `Documentation for ${classification.intent}: Basic information about ${classification.topic}`,
+      `FAQ Entry: Common Questions Related to ${classification.topic}`,
+      `Knowledge base article: How to handle ${classification.intent} requests`
+    ];
 
-  console.log("Found search results:", searchResults.length, 'items');
+    console.log("Found search results:", searchResults.length, 'items');
 
-  return { searchResults }
+    return { searchResults }
+  } catch (err) {
+    console.log("Search error:", err);
+    return {
+      searchResults: [`Search temporarily unavailable: ${err}`]
+    }
+  }
 }
 
-const writeResponse = (state: EmailAgentState) => { }
+const writeResponse = (state: EmailAgentState) => {
+
+}
+
 const humanReview = (state: EmailAgentState) => { }
 const sendReply = (state: EmailAgentState) => { }
 
