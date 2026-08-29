@@ -93,6 +93,22 @@ npx tsx src/L1/05-interrupts.ts
 ### 📧 L2 Email Workflow
 
 ```bash
+npx tsx src/L2/email-workflow.ts
+```
+
+The graph pauses at the human review step and waits for a decision. Paste this
+at the prompt to approve the draft and let it run through to `send_reply`:
+
+```json
+{"approved": true, "editedResponse": "We will be there soon"}
+```
+
+An `OPENAI_API_KEY` is **not** required to see the workflow run. Without one, the
+LLM calls in `classify_intent` and `write_response` fail into their fallback
+branches, so the graph still completes and you can follow the routing, the
+interrupt, and the resume end to end.
+
+```bash
 # email processing in Langsmith Studio
 npm run dev
 ```
