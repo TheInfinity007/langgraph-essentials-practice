@@ -8,7 +8,9 @@ This directory contains TypeScript implementations of the LangGraph examples fro
 
 - Node.js 20+
 - npm
-- OpenAI API key (for L2 email workflow)
+- For the L2 email workflow, one LLM provider — either a Google Cloud login (no API key
+  needed, see [docs/gemini-adc-setup.md](docs/gemini-adc-setup.md)) or an OpenAI API key.
+  The L1 examples make no LLM calls and need neither.
 
 ### Installation
 
@@ -27,10 +29,11 @@ Make a copy of example.env
 cp example.env .env
 ```
 
-Insert API keys directly into .env file, OpenAI (required) and [LangSmith](#getting-started-with-langsmith) (optional)
+Insert any API keys you need directly into the .env file. All of these are optional:
 
 ```bash
-# Add OpenAI API key
+# Only needed for LLM_PROVIDER=openai. The default gemini provider uses a Google Cloud
+# login instead and needs no key — see docs/gemini-adc-setup.md.
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Optional API key for LangSmith tracing
@@ -38,6 +41,9 @@ LANGSMITH_API_KEY=your_langsmith_api_key_here
 LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=langgraph-py-essentials
 ```
+
+> Note: `npx tsx` does **not** read `.env`. To pick up values from it, run
+> `node --env-file=.env --import tsx <file>` instead.
 
 build project
 
@@ -96,12 +102,87 @@ npx tsx src/L1/05-interrupts.ts
 npx tsx src/L2/email-workflow.ts
 ```
 
-The graph pauses at the human review step and waits for a decision. Paste this
-at the prompt to approve the draft and let it run through to `send_reply`:
+#### End-to-end sample run
 
-```json
-{"approved": true, "editedResponse": "We will be there soon"}
+Long output trimmed with `…`, otherwise verbatim:
+
+```text
+[llm] provider=gemini model=gemini-2.5-pro location=us-central1
+Processing email from: infinity@gmail.com
+Classifying email intent and urgency...
+Classification {
+  intent: 'bug',
+  urgency: 'critical',
+  topic: 'Car',
+  summary: 'The user is reporting that their car has blown up.'
+}
+Creating bug tracking ticket...
+Ticket Created: BUG_1788027088587
+Searching documentation...
+Found search results: 3 items
+Writing response...
+Human Review ...
+Result: {"emailContent":"My Car has blown up","senderEmail":"infinity@gmail.com", … }
+
+================================================================================
+Please review and approve/edit this response
+================================================================================
+
+Draft response:
+Subject: Re: My Car has blown up
+
+Thank you for alerting us to this. We are very sorry to hear you're experiencing a
+critical failure with the Car feature. …
+
+Reply with a JSON object:
+  approved        boolean, required - true to send the reply, false to discard it
+  editedResponse  string, optional - replaces the draft when approved
+
+Examples:
+  {"approved": true}
+  {"approved": true, "editedResponse": "We will be there soon"}
+  {"approved": false}
+
+decision (JSON): yes
+  Invalid - input: Invalid input: expected object, received string
+  Expected something like {"approved": true}
+
+decision (JSON): {"approved": true, "editedResponse": "A technician is on the way."}
+Human Review ...
+Sending reply A technician is on the way....
+--------------------------------------------------------------------------------
+Final Result {
+  emailContent: 'My Car has blown up',
+  classification: { intent: 'bug', urgency: 'critical', topic: 'Car', … },
+  ticketId: 'BUG_1788027088587',
+  searchResults: [ … ],
+  draftResponse: 'A technician is on the way.'
+}
 ```
+
+Three things that transcript shows:
+
+- **You don't need to know the response format.** The prompt lists the fields and gives
+  examples, because the expected shape travels inside the interrupt payload — so
+  LangGraph Studio shows it too, not just the CLI.
+- **A malformed answer is re-prompted, not accepted.** `yes` is rejected with the reason
+  and an example. Nothing reaches the graph until the input validates, so a typo can never
+  be misread as "reject and discard".
+- **`Human Review ...` prints twice.** The node body re-runs from the top when the graph
+  resumes; `interrupt()` returns your decision the second time instead of pausing. This is
+  why code before an `interrupt()` must be safe to execute more than once.
+
+#### Whether you get a review step
+
+`write_response` routes to `human_review` when urgency is `high`/`critical` **or** intent is
+`complex`, and straight to `send_reply` otherwise. The file defines two sample emails:
+
+| Sample | Email | Path |
+|---|---|---|
+| `state1` (default) | "My Car has blown up" | classified critical → human review |
+| `state2` | "I've bought a new car. What things should I do or modify?" | low urgency → straight to send |
+
+Change `inputState` near the bottom of the file to try the other path.
 
 #### Choosing a provider
 
