@@ -3,9 +3,9 @@
 How the Application Default Credentials (ADC) setup works for Gemini on Vertex AI.
 For step-by-step instructions, see [gemini-adc-setup.md](./gemini-adc-setup.md).
 
-This is the Gemini counterpart to [claude-oauth-architecture.md](./claude-oauth-architecture.md).
-The headline difference: **Gemini needs no workaround.** Where `ChatAnthropic` had to be
-tricked past an API-key check, the Google integration was built around ADC from the start.
+The headline point: **Gemini needs no workaround.** Some LangChain integrations gate their
+constructor on an API key and have to be worked around; the Google integration was built
+around ADC from the start.
 
 ---
 

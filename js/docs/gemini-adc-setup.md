@@ -4,8 +4,7 @@ A reusable recipe for authenticating a LangChain or LangGraph project to Gemini 
 Application Default Credentials from a Google Cloud SSO login, instead of a `GOOGLE_API_KEY`.
 
 Written to be copied into future projects. For *why* it works, see
-[gemini-adc-architecture.md](./gemini-adc-architecture.md). For the Anthropic equivalent,
-see [claude-oauth-setup.md](./claude-oauth-setup.md).
+[gemini-adc-architecture.md](./gemini-adc-architecture.md).
 
 ---
 
