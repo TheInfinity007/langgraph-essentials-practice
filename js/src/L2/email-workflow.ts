@@ -29,6 +29,40 @@ export const EmailStateDefinition = z.object({
 
 export type EmailAgentState = z.infer<typeof EmailStateDefinition>;
 
+// The contract for resuming a human_review interrupt. Shared by the node and any client
+// (CLI, LangGraph Studio) so both agree on the shape. Being a Zod schema, it provides
+// .safeParse() for validation - used in humanReview and in the CLI driver below.
+export const HumanDecisionSchema = z.object({
+  approved: z.boolean(),
+  editedResponse: z.string().optional(),
+});
+
+export type HumanDecision = z.infer<typeof HumanDecisionSchema>;
+
+// Sent as part of the interrupt payload so the client can tell the human what to type,
+// instead of the human having to read the source to discover the format.
+const REVIEW_REQUEST = {
+  action: 'Please review and approve/edit this response',
+  responseFormat: 'JSON object',
+  fields: {
+    approved: 'boolean, required - true to send the reply, false to discard it',
+    editedResponse: 'string, optional - replaces the draft when approved',
+  },
+  examples: [
+    '{"approved": true}',
+    '{"approved": true, "editedResponse": "We will be there soon"}',
+    '{"approved": false}',
+  ],
+};
+
+const tryJson = (value: string): unknown => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+};
+
 const memory = new MemorySaver();
 
 const NODES = {
@@ -158,8 +192,8 @@ const writeResponse = async (state: EmailAgentState) => {
     const goto = needsReview ? NODES.HUMAN_REVIEW : NODES.SEND_REPLY;
 
     return new Command({
-      // .text, not the message itself: draftResponse is a string, and Claude returns
-      // content as an array of content blocks. .text flattens it.
+      // .text, not the message itself: draftResponse is a string, while `content` can be
+      // an array of content blocks depending on the provider. .text flattens it.
       update: { draftResponse: response.text },
       goto
     })
@@ -184,28 +218,41 @@ const humanReview = (state: EmailAgentState) => {
     summary: "Unable to classify email automatically"
   }
 
-  let humanDecision = interrupt({
-    ...state,
-    action: 'Please review and approve/edit this response'
+  // The payload carries the expected response shape, so any client can show the human
+  // what to type rather than leaving them to guess.
+  const raw = interrupt({
+    ...REVIEW_REQUEST,
+    draftResponse: state.draftResponse,
+    intent: classification.intent,
+    urgency: classification.urgency,
   });
-try {
-  humanDecision = JSON.parse(humanDecision);
-} catch (err) {
-  // silent
-}
 
-  console.log(humanDecision, humanDecision, humanDecision.approved)
-  if (humanDecision.approved) {
-    const editedResponse = humanDecision.editedResponse ?? state.draftResponse;
-    return new Command({
-      update: { draftResponse: editedResponse },
-      goto: NODES.SEND_REPLY
-    })
+  // Zod's safeParse validates without throwing. It returns a discriminated union:
+  //   { success: true,  data: HumanDecision }
+  //   { success: false, error: ZodError }
+  // `success` is the discriminant, so checking it is what makes `.data` reachable below.
+  const decision = HumanDecisionSchema.safeParse(
+    typeof raw === 'string' ? tryJson(raw) : raw
+  );
+
+  if (!decision.success) {
+    // Loud, not silent: an unreadable decision used to fall through to END as though the
+    // reviewer had rejected the draft.
+    console.log(
+      `Could not read the review decision. Expected ${REVIEW_REQUEST.responseFormat} ` +
+      `such as ${REVIEW_REQUEST.examples[1]}, received: ${JSON.stringify(raw)}`
+    );
+    return new Command({ update: {}, goto: END });
+  }
+
+  if (!decision.data.approved) {
+    console.log('Reviewer rejected the draft - not sending.');
+    return new Command({ update: {}, goto: END });
   }
 
   return new Command({
-    update: {},
-    goto: END
+    update: { draftResponse: decision.data.editedResponse ?? state.draftResponse },
+    goto: NODES.SEND_REPLY
   })
 }
 
@@ -244,11 +291,21 @@ export const graph = new StateGraph(EmailStateDefinition)
   .compile({ checkpointer: memory })
 
 
-const inputState: EmailAgentState = {
+
+const state1 = {
   emailContent: "My Car has blown up",
   senderEmail: "infinity@gmail.com",
   emailId: 'emailid'
-};
+}
+
+const state2 = {
+  emailContent: "I've bought a new car. What things that i should do or modify ?",
+  senderEmail: "infinity@gmail.com",
+  emailId: 'emailid'
+}
+
+
+const inputState: EmailAgentState = state1;
 const config = {
   configurable: { thread_id: 'T1' }
 }
@@ -257,21 +314,72 @@ console.log(`Result: ${JSON.stringify(result)}`)
 
 
 // __interrupt__ is injected at runtime, so it is not part of the inferred state type
-type InterruptedResult = { __interrupt__: { value?: { action?: string } }[] };
+type InterruptedResult = {
+  __interrupt__: {
+    value?: {
+      action?: string;
+      responseFormat?: string;
+      fields?: Record<string, string>;
+      examples?: string[];
+      draftResponse?: string;
+    };
+  }[];
+};
 
 const hasInterrupt = (value: unknown): value is InterruptedResult =>
   Array.isArray((value as InterruptedResult)?.__interrupt__);
 
 if (hasInterrupt(result)) {
-  console.log("\nInterrupt:");
-  const interruptMessage = result.__interrupt__.at(-1);
-  const msg = interruptMessage?.value?.action || ""
-  const human = await getUserInput(msg);
+  const request = result.__interrupt__.at(-1)?.value;
 
-  const result2 = await graph.invoke(new Command({ resume: human }), config)
+  // Show the human the draft and the exact shape of the expected answer.
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(request?.action ?? 'Review required');
+  console.log(`${'='.repeat(80)}`);
+  console.log(`\nDraft response:\n${request?.draftResponse ?? '(none)'}\n`);
+  console.log(`Reply with a ${request?.responseFormat ?? 'JSON object'}:`);
+  for (const [field, description] of Object.entries(request?.fields ?? {})) {
+    console.log(`  ${field.padEnd(15)} ${description}`);
+  }
+  console.log('\nExamples:');
+  for (const example of request?.examples ?? []) {
+    console.log(`  ${example}`);
+  }
+  console.log('');
+
+  // Validate before resuming: a malformed answer is re-prompted rather than sent to the
+  // graph, where it would be treated as a rejection and discard the reply.
+  let decision: HumanDecision | undefined;
+  while (decision === undefined) {
+    const answer = await getUserInput('decision (JSON): ');
+
+    // safeParse -> { success: true, data } | { success: false, error } (see humanReview).
+    // safeParse rather than parse: no try/catch, and the failure branch gives structured
+    // field-level errors instead of a thrown exception to unwrap.
+    const parsed = HumanDecisionSchema.safeParse(tryJson(answer));
+
+    if (parsed.success) {
+      decision = parsed.data;
+      break;
+    }
+
+    // ZodError.issues holds one entry per validation failure. issue.path locates the
+    // offending field, e.g. ['approved'] -> "approved". An empty path means the value
+    // itself was wrong shape (typing `yes` gives a string where an object was expected),
+    // so fall back to "input".
+    const problems = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || 'input'}: ${issue.message}`)
+      .join('; ');
+    console.log(`  Invalid - ${problems}`);
+    console.log(`  Expected something like ${request?.examples?.[0] ?? '{"approved": true}'}\n`);
+  }
+
+  const result2 = await graph.invoke(new Command({ resume: decision }), config)
   console.log(`${'-'.repeat(80)}`);
 
   console.log('Final Result', result2)
+} else {
+  console.log('Final Result without interrupt', result)
 }
 
 
