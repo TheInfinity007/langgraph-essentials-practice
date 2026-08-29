@@ -63,7 +63,7 @@ const classifyIntent = async (state: EmailAgentState) => {
     console.log('Classification', classification)
     return { classification }
   } catch (err) {
-    console.log('Error in classifying the email:', err.message);
+    console.log('Error in classifying the email:', err instanceof Error ? err.message : err);
     return {
       intent: "question",
       urgency: "medium",
@@ -160,7 +160,7 @@ const writeResponse = async (state: EmailAgentState) => {
       goto
     })
   } catch (err) {
-    console.log('Error writing response:', err.message);
+    console.log('Error writing response:', err instanceof Error ? err.message : err);
     return new Command({
       update: { draftResponse: "Error generating response. Please try again." },
       goto: NODES.HUMAN_REVIEW
@@ -252,10 +252,16 @@ const result = await graph.invoke(inputState, config);
 console.log(`Result: ${JSON.stringify(result)}`)
 
 
-if (result.__interrupt__ && Array.isArray(result.__interrupt__)) {
+// __interrupt__ is injected at runtime, so it is not part of the inferred state type
+type InterruptedResult = { __interrupt__: { value?: { action?: string } }[] };
+
+const hasInterrupt = (value: unknown): value is InterruptedResult =>
+  Array.isArray((value as InterruptedResult)?.__interrupt__);
+
+if (hasInterrupt(result)) {
   console.log("\nInterrupt:");
   const interruptMessage = result.__interrupt__.at(-1);
-  const msg = interruptMessage.value?.action || ""
+  const msg = interruptMessage?.value?.action || ""
   const human = await getUserInput(msg);
 
   const result2 = await graph.invoke(new Command({ resume: human }), config)
