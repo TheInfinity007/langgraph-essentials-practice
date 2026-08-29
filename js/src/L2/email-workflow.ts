@@ -3,6 +3,7 @@
 import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
 import { Command, END, interrupt, MemorySaver, START, StateGraph } from '@langchain/langgraph'
+import { getUserInput } from '../utils.js';
 
 const llm = new ChatOpenAI({ model: 'gpt-5' });
 
@@ -62,7 +63,7 @@ const classifyIntent = async (state: EmailAgentState) => {
     console.log('Classification', classification)
     return { classification }
   } catch (err) {
-    console.log('Error in classifying the email:', err);
+    console.log('Error in classifying the email:', err.message);
     return {
       intent: "question",
       urgency: "medium",
@@ -159,7 +160,7 @@ const writeResponse = async (state: EmailAgentState) => {
       goto
     })
   } catch (err) {
-    console.log('Error writing response:', err);
+    console.log('Error writing response:', err.message);
     return new Command({
       update: { draftResponse: "Error generating response. Please try again." },
       goto: NODES.HUMAN_REVIEW
@@ -169,6 +170,9 @@ const writeResponse = async (state: EmailAgentState) => {
 }
 
 const humanReview = (state: EmailAgentState) => {
+
+  console.log("Human Review ...")
+
   const classification = state.classification ?? {
     intent: "question",
     urgency: "medium",
@@ -176,11 +180,17 @@ const humanReview = (state: EmailAgentState) => {
     summary: "Unable to classify email automatically"
   }
 
-  const humanDecision = interrupt({
+  let humanDecision = interrupt({
     ...state,
     action: 'Please review and approve/edit this response'
   });
+try {
+  humanDecision = JSON.parse(humanDecision);
+} catch (err) {
+  // silent
+}
 
+  console.log(humanDecision, humanDecision, humanDecision.approved)
   if (humanDecision.approved) {
     const editedResponse = humanDecision.editedResponse ?? state.draftResponse;
     return new Command({
@@ -199,7 +209,6 @@ const humanReview = (state: EmailAgentState) => {
 const sendReply = (state: EmailAgentState) => {
   const preview = state.draftResponse?.substring(0, 60) + "...";
   console.log(`Sending reply ${preview}`)
-
   return {}
 }
 
@@ -229,3 +238,30 @@ export const graph = new StateGraph(EmailStateDefinition)
   .addEdge(NODES.SEND_REPLY, END)
 
   .compile({ checkpointer: memory })
+
+
+const inputState: EmailAgentState = {
+  emailContent: "My Car has blown up",
+  senderEmail: "infinity@gmail.com",
+  emailId: 'emailid'
+};
+const config = {
+  configurable: { thread_id: 'T1' }
+}
+const result = await graph.invoke(inputState, config);
+console.log(`Result: ${JSON.stringify(result)}`)
+
+
+if (result.__interrupt__ && Array.isArray(result.__interrupt__)) {
+  console.log("\nInterrupt:");
+  const interruptMessage = result.__interrupt__.at(-1);
+  const msg = interruptMessage.value?.action || ""
+  const human = await getUserInput(msg);
+
+  const result2 = await graph.invoke(new Command({ resume: human }), config)
+  console.log(`${'-'.repeat(80)}`);
+
+  console.log('Final Result', result2)
+}
+
+
