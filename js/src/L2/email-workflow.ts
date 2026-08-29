@@ -2,7 +2,7 @@
 
 import { ChatOpenAI } from '@langchain/openai';
 import z from 'zod';
-import { Command, END, MemorySaver, START, StateGraph } from '@langchain/langgraph'
+import { Command, END, interrupt, MemorySaver, START, StateGraph } from '@langchain/langgraph'
 
 const llm = new ChatOpenAI({ model: 'gpt-5' });
 
@@ -168,7 +168,32 @@ const writeResponse = async (state: EmailAgentState) => {
 
 }
 
-const humanReview = (state: EmailAgentState) => { }
+const humanReview = (state: EmailAgentState) => {
+  const classification = state.classification ?? {
+    intent: "question",
+    urgency: "medium",
+    topic: "general",
+    summary: "Unable to classify email automatically"
+  }
+
+  const humanDecision = interrupt({
+    ...state,
+    action: 'Please review and approve/edit this response'
+  });
+
+  if (humanDecision.approved) {
+    const editedResponse = humanDecision.editedResponse ?? state.draftResponse;
+    return new Command({
+      update: { draftResponse: editedResponse },
+      goto: NODES.SEND_REPLY
+    })
+  }
+
+  return new Command({
+    update: {},
+    goto: END
+  })
+}
 const sendReply = (state: EmailAgentState) => { }
 
 
@@ -178,8 +203,8 @@ const graph = new StateGraph(EmailStateDefinition)
   .addNode(NODES.CLASSIFY_INTENT, classifyIntent)
   .addNode(NODES.BUG_TRACKING, bugTracking)
   .addNode(NODES.SEARCH_DOCUMENTATION, searchDocumentation)
-  .addNode(NODES.WRITE_RESPONSE, writeResponse)
-  .addNode(NODES.HUMAN_REVIEW, humanReview)
+  .addNode(NODES.WRITE_RESPONSE, writeResponse, { ends: [NODES.HUMAN_REVIEW, NODES.SEND_REPLY] })
+  .addNode(NODES.HUMAN_REVIEW, humanReview, { ends: [NODES.SEND_REPLY, END] })
   .addNode(NODES.SEND_REPLY, sendReply)
 
   // Add Edges
