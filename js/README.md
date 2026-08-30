@@ -220,6 +220,10 @@ Authenticating to an LLM provider **without an API key**, using an org SSO login
   Application Default Credentials (what the L2 email workflow uses by default)
 - [docs/gemini-adc-architecture.md](docs/gemini-adc-architecture.md) — how that works internally
 
+These are copies. The maintained versions live in
+[TheInfinity007/ai-engineering-notes](https://github.com/TheInfinity007/ai-engineering-notes)
+under `auth/` — check there if the copies here look out of date.
+
 ## 🔗 Related Resources
 
 - [LangGraph Documentation](https://docs.langchain.com/oss/python/langgraph/overview)
