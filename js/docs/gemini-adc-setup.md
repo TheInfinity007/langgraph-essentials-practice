@@ -143,10 +143,9 @@ const llm = new ChatVertexAI({
 });
 ```
 
-That's it — genuinely. Unlike the Anthropic setup, there is no credential check to work
-around and no client factory to supply. `ChatVertexAI` delegates to `google-auth-library`,
-which walks the ADC chain and attaches a bearer token to every request, refreshing it as
-needed.
+That's it — genuinely. There is no credential check to work around and no client factory to
+supply. `ChatVertexAI` delegates to `google-auth-library`, which walks the ADC chain and
+attaches a bearer token to every request, refreshing it as needed.
 
 Three notes:
 
@@ -154,7 +153,7 @@ Three notes:
   Confirm your chosen id is offered in your region.
 - **`location` matters.** Model availability is per-region; `us-central1` has the widest
   selection. A wrong region shows up as a `404 Publisher Model ... not found`.
-- **`withStructuredOutput` works**, so Zod-schema classification carries over unchanged
+- **`withStructuredOutput` works**, so Zod-schema structured output carries over unchanged
   from an OpenAI or Anthropic implementation.
 
 ---
@@ -166,6 +165,122 @@ npx tsx path/to/your-file.ts
 ```
 
 With no `GOOGLE_API_KEY` set anywhere.
+
+---
+
+## Usage patterns
+
+Two shapes you are likely to want. **Neither changes the credential setup** — ADC resolves
+identically for both, and no API key is involved either way.
+
+### A. The chat model directly
+
+Reach for this when you want the model object itself: LangGraph nodes,
+`withStructuredOutput`, custom chains.
+
+```ts
+import { ChatVertexAI } from '@langchain/google-vertexai';
+
+const llm = new ChatVertexAI({ model: 'gemini-2.5-pro', location: 'us-central1' });
+const response = await llm.invoke('Draft a reply to this email...');
+console.log(response.text);   // .text flattens content blocks to a string
+```
+
+### B. An agent, with a provider-prefixed model string
+
+`langchain` v1's `createAgent` accepts a `"provider:model"` string instead of a constructed
+model, which is the shortest path to a working agent.
+
+```ts
+import { createAgent, HumanMessage } from 'langchain';
+
+const agent = createAgent({
+  model: 'google-vertexai:gemini-2.5-flash',
+  systemPrompt: 'You are a full-stack comedian',
+});
+
+const result = await agent.invoke({ messages: [new HumanMessage('Hello, how are you?')] });
+console.log(result.messages.at(-1).content);
+
+// the whole conversation, including tool calls
+for (const message of result.messages) console.log(message.type, message.content);
+```
+
+Three things worth knowing about the string form:
+
+- **The `google-vertexai:` prefix still requires `@langchain/google-vertexai` to be
+  installed**, even though you never import it. `langchain` resolves the provider at
+  runtime; a missing package shows up as a resolution error, not an auth error.
+- **`createAgent` is synchronous.** It returns the agent, not a promise, so `await` is
+  unnecessary (harmless, but it reads as though it were async).
+- **Auth is unchanged.** The prefix selects a provider; ADC does the rest.
+
+### Switching providers in one line
+
+Because the model is just a string, provider choice collapses to a variable:
+
+```ts
+const provider = 'gemini';
+
+const model = provider === 'gemini'
+  ? 'google-vertexai:gemini-2.5-flash'
+  : 'anthropic:claude-sonnet-4-5-20250929';
+```
+
+Note the asymmetry this exposes: the `anthropic:` string needs an `ANTHROPIC_API_KEY` in the
+environment, while the `google-vertexai:` string needs no secret at all. Keyless is a
+property of the provider, not of LangChain.
+
+### Adding tools
+
+Auth plays no part here, but it is the usual next step after a bare agent:
+
+```ts
+import { createAgent, tool } from 'langchain';
+import { z } from 'zod';
+
+const checkHaikuLines = tool(
+  ({ text }) => {
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    return lines.length === 3
+      ? 'Correct, this haiku has 3 lines.'
+      : `Incorrect! This haiku has ${lines.length} lines.`;
+  },
+  {
+    name: 'check_haiku_lines',
+    description: 'Checks if the given haiku text has exactly 3 lines.',
+    schema: z.object({ text: z.string().describe('The haiku text to check') }),
+  }
+);
+
+const agent = createAgent({
+  model: 'google-vertexai:gemini-2.5-flash',
+  systemPrompt: 'You are a sports poet who only writes haiku. You always check your work.',
+  tools: [checkHaikuLines],
+});
+
+const result = await agent.invoke({ messages: 'Please write me a poem' });
+console.log(result.messages.length);   // > 2: the tool call and its result are in here
+```
+
+### Supplying the project id from `.env`
+
+A convenient third way to satisfy the project-id chain, alongside `gcloud config set project`
+and an exported variable:
+
+```ts
+import 'dotenv/config';   // reads GOOGLE_CLOUD_PROJECT from .env
+```
+
+```bash
+# .env
+GOOGLE_CLOUD_PROJECT=your-project-id
+```
+
+This is worth knowing because `npx tsx` does **not** read `.env` by itself — importing
+`dotenv/config` from your code sidesteps that, with no change to how you invoke the script.
+Keep `.env` gitignored: the project id is not secret, but the file tends to accumulate keys
+that are.
 
 ---
 
